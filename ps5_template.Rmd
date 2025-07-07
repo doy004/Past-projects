@@ -1,0 +1,428 @@
+---
+title: "ECON 125 Problem Set 5"
+author: "Mia Yu"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r, message = FALSE, include = FALSE}
+# This code block sets up the R environment for you
+# You do not need to edit it
+
+# Clear the R environment
+rm(list=ls())
+
+# Load tidyverse
+library(tidyverse)
+
+# Load datasets
+load(url("https://github.com/tomvogl/econ125/raw/main/data/enoe.rds"))
+load(url("https://github.com/tomvogl/econ125/raw/main/data/cps.rds"))
+```
+
+## Question 1
+
+For ages 20–25, average education rises sharply with age (postive slope), reflecting age effects as people complete their schooling. Us become smooth and Mexico shows cohort effect that older people have less education, where US cohort effect is stable. For older ages, differences in education mainly reflect cohort effects, with younger birth cohorts in the US  having higher average educational attainment than older cohorts. In older cohort reflect bigger difference in education between US and Mexico.
+
+```{r}
+us_2019 <- cps %>%
+  filter(year == 2019) %>%
+  group_by(age) %>%
+  summarise(avg_ed = mean(edyears, na.rm = TRUE), .groups = "drop") %>%
+  mutate(country = "US")
+
+mx_2019 <- enoe %>%
+  filter(year == 2019) %>%    # Add this to focus on 2019 only
+  group_by(age) %>%
+  summarise(avg_ed = mean(edyears, na.rm = TRUE), .groups = "drop") %>%
+  mutate(country = "Mexico")
+
+avg_edu <- bind_rows(us_2019, mx_2019)
+
+ggplot(avg_edu, aes(x = age, y = avg_ed, color = country)) +
+  geom_line() +
+  geom_point() 
+
+avg_edu<- avg_edu %>%
+  filter(age>=30) %>%
+  mutate(cohort=2019-age)
+
+ggplot(avg_edu, aes(x = cohort, y = avg_ed, color = country)) +
+  geom_line() +
+  geom_point() 
+```
+
+\newpage
+
+## Question 2
+
+positive for all cohort, younger cohort has more years in education ad is true for all age groups.
+
+```{r}
+us<-cps %>%
+  filter(age<30) %>%
+  group_by(year,age) %>%
+  summarise(avg_ed=mean(edyears)) %>%
+  mutate(cohort=year-age)
+
+us<-us %>%
+  filter(cohort%%5==0)
+
+ggplot(us,aes(x=age,y=avg_ed,color=factor(cohort)))+
+  geom_line()+
+  geom_point()
+
+mx <- enoe %>%
+  filter(age < 30) %>%
+  group_by(year, age) %>%
+  summarise(avg_ed = mean(edyears, na.rm = TRUE), .groups = "drop") %>%
+  mutate(cohort = year - age) %>%
+  filter(cohort %% 5 == 0)
+
+ggplot(mx, aes(x = age, y = avg_ed, color = factor(cohort))) +
+  geom_line() +
+  geom_point() 
+
+```
+
+\newpage
+
+## Question 3
+
+Employment rates rise with age in early adulthood, peak in middle age, and decline at older ages, showing clear age effects in both countries. At any given age, men consistently have higher employment rates than women, and differences across birth cohorts suggest changing labor market conditions over time.
+
+```{r}
+
+us_data <- cps %>% mutate(country = "US")
+mx_data <- enoe %>% mutate(country = "Mexico")
+
+all_data <- bind_rows(us_data, mx_data) %>%
+  mutate(birth_year = year - age) %>%
+  filter(birth_year %% 5 == 0) %>%
+  group_by(country, male, birth_year, age) %>%
+  summarise(employment_rate = mean(hours, na.rm = TRUE), .groups = "drop")
+all_data <- all_data %>%
+  mutate(male = factor(male, labels = c("Female", "Male")))
+
+ggplot(all_data, aes(x = age, y = employment_rate, color = male)) +
+  geom_line() +
+  facet_wrap(~ country)
+ 
+
+```
+\newpage
+
+## Question 4
+
+Mexico average wage in 2010 dollar is 11.23, and US average wage in 2010 is 26.07
+
+```{r}
+cpi_us <- c(`2010`=100, `2011`=103, `2012`=105, `2013`=107, `2014`=109,
+            `2015`=109, `2016`=110, `2017`=112, `2018`=115, `2019`=117)
+
+cpi_mx <- c(`2010`=100, `2011`=103, `2012`=108, `2013`=112, `2014`=116,
+            `2015`=119, `2016`=123, `2017`=130, `2018`=137, `2019`=142)
+
+
+deflate_wage <- function(wage, year, cpi_vector) {
+  wage / (cpi_vector[as.character(year)] / 100)
+}
+
+
+us_wages <- cps %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 1560,
+         incwage > 0) %>%
+  mutate(hourly_wage = incwage / hours,
+         hourly_wage_2010 = deflate_wage(hourly_wage, year, cpi_us),
+         country = "US")
+
+mx_wages <- enoe %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 30,
+         incwage > 0) %>%
+  mutate(hourly_wage = incwage / hours,
+         hourly_wage_2010 = deflate_wage(hourly_wage, year, cpi_mx),
+         hourly_wage_2010_usd = hourly_wage_2010 / 10,
+         country = "Mexico")
+
+wages_all <- bind_rows(
+  us_wages %>% select(hourly_wage_2010, country),
+  mx_wages %>% select(hourly_wage_2010_usd, country) %>% rename(hourly_wage_2010 = hourly_wage_2010_usd)
+)
+
+wages_all <- wages_all %>%
+  mutate(hourly_wage_2010 = as.numeric(hourly_wage_2010))
+
+avg_wages <- wages_all %>%
+  group_by(country) %>%
+  summarise(avg_hourly_wage_2010 = mean(hourly_wage_2010, na.rm = TRUE))
+
+print(avg_wages)
+
+```
+\newpage
+
+## Question 5
+
+The log-scale graph is more informative because it reveals proportional differences in wages across ages and between countries, which are hard to see on a linear scale due to large level differences.
+
+```{r}
+
+us_2019_wages <- cps %>%
+  filter(year == 2019,
+         male == 1,
+         classwk == "Wage/salary worker",      
+         hours >= 1560,                 
+         incwage > 0) %>%
+  mutate(hourly_wage = incwage / (hours),
+         country = "US")
+
+mx_2019_wages <- enoe %>%
+  filter(year == 2019,
+         male == 1,
+         classwk == "Wage/salary worker",      
+         hours >= 30,                  
+         incwage > 0) %>%
+  mutate(hourly_wage = incwage*12 / (hours*52),
+         hourly_wage_usd = hourly_wage / 10,  
+         country = "Mexico")
+
+wages_2019 <- bind_rows(
+  us_2019_wages %>% select(age, hourly_wage, country),
+  mx_2019_wages %>% select(age, hourly_wage_usd, country) %>% rename(hourly_wage = hourly_wage_usd)
+)
+
+avg_wages_2019 <- wages_2019 %>%
+  group_by(country, age) %>%
+  summarise(avg_hourly_wage = mean(hourly_wage, na.rm = TRUE), .groups = "drop")
+
+ggplot(avg_wages_2019, aes(x = age, y = avg_hourly_wage, color = country)) +
+  geom_line() +
+  geom_point() 
+
+ggplot(avg_wages_2019, aes(x = age, y = avg_hourly_wage, color = country)) +
+  geom_line() +
+  geom_point() +
+  scale_y_log10() 
+```
+\newpage
+
+## Question 6
+
+In 2019, the ratio of the average US wage to the average Mexico wage was approximately 73:1 at age 20 and 140:1 at age 50.
+An age-based explanation for the larger gap at age 50 is that wages typically rise with experience and tenure, which are more highly rewarded in the US labor market. A cohort-based explanation is that 50-year-olds in the US likely benefited from better schooling and labor market opportunities over their lifetime compared to their counterparts in Mexico, reflecting long-term differences in human capital investment across cohorts.
+
+
+```{r}
+
+us_20_50 <- cps %>%
+  filter(year == 2019,
+         male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 1560,
+         incwage > 0,
+         age %in% c(20, 50)) %>%
+  mutate(hourly_wage = incwage / hours,
+         hourly_wage_2010 = hourly_wage / (117 / 100),  
+         country = "US")
+
+mx_20_50 <- enoe %>%
+  filter(year == 2019,
+         male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 30,
+         incwage > 0,
+         age %in% c(20, 50)) %>%
+  mutate(hourly_wage = incwage / (hours * 52),
+         hourly_wage_2010 = hourly_wage / (142 / 100),
+         hourly_wage_2010_usd = hourly_wage_2010 / 10,
+         country = "Mexico")
+
+wages_age_compare <- bind_rows(
+  us_20_50 %>% select(age, hourly_wage_2010, country),
+  mx_20_50 %>% select(age, hourly_wage_2010_usd, country) %>% 
+    rename(hourly_wage_2010 = hourly_wage_2010_usd)
+)
+
+avg_wages_by_age <- wages_age_compare %>%
+  group_by(country, age) %>%
+  summarise(avg_wage_2010 = mean(hourly_wage_2010, na.rm = TRUE), .groups = "drop")
+
+print(avg_wages_by_age)
+
+avg_wages_wide <- avg_wages_by_age %>%
+  pivot_wider(names_from = country, values_from = avg_wage_2010) %>%
+  mutate(ratio_us_to_mex = US / Mexico)
+
+print(avg_wages_wide)
+
+```
+\newpage
+
+## Question 7
+
+The cohort age profiles (log scale) show that US wages grow steeply with age and later cohorts generally earn more at younger ages than earlier cohorts, indicating both strong age and cohort effects. In contrast, Mexico’s cohort wage profiles are flatter, with smaller differences across cohorts and ages, suggesting weaker age-related earnings growth and more limited cohort gains.
+Compared to the cross-sectional profiles, the cohort plots more clearly isolate generational trends. Given the sharp rise in US wage ratios with age, the age-based explanation seems plausible—but the strong upward trend across cohorts also supports a cohort-based explanation for long-run gains in the US.
+
+```{r}
+
+us_wage_cohorts <- cps %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 1560,
+         incwage > 0) %>%
+  mutate(
+    hourly_wage = incwage / hours,
+    hourly_wage_2010 = hourly_wage / (cpi_us[as.character(year)] / 100),
+    birth_year = year - age,
+    country = "US"
+  ) %>%
+  filter(birth_year %% 5 == 0)
+
+mx_wage_cohorts <- enoe %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 30,
+         incwage > 0) %>%
+  mutate(
+    hourly_wage = incwage / (hours * 52),
+    hourly_wage_2010 = hourly_wage / (cpi_mx[as.character(year)] / 100) / 10,
+    birth_year = year - age,
+    country = "Mexico"
+  ) %>%
+  filter(birth_year %% 5 == 0)
+
+wage_cohorts <- bind_rows(
+  us_wage_cohorts %>% select(age, birth_year, hourly_wage_2010, country),
+  mx_wage_cohorts %>% select(age, birth_year, hourly_wage_2010, country)
+)
+
+wage_cohort_profiles <- wage_cohorts %>%
+  group_by(country, birth_year, age) %>%
+  summarise(avg_wage = mean(hourly_wage_2010, na.rm = TRUE), .groups = "drop")
+
+
+library(ggplot2)
+ggplot(wage_cohort_profiles, aes(x = age, y = avg_wage, color = factor(birth_year))) +
+  geom_line() +
+  facet_wrap(~country) +
+  scale_y_log10() 
+
+```
+\newpage
+
+## Question 8
+Wages for the 1990 cohort rise more steeply in the United States than in Mexico, indicating higher returns to experience or job mobility in the US. In contrast, Mexico shows flatter wage growth, suggesting slower life-cycle progression in earnings for workers.
+
+
+```{r}
+us_1990 <- cps %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 1560,
+         incwage > 0,
+         year - age == 1990) %>%
+  mutate(hourly_wage = incwage / hours,
+         hourly_wage_2010 = hourly_wage / (cpi_us[as.character(year)] / 100),
+         country = "US")
+
+mx_1990 <- enoe %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 30,
+         incwage > 0,
+         year - age == 1990) %>%
+  mutate(hourly_wage = incwage / (hours * 52),
+         hourly_wage_2010 = (hourly_wage / (cpi_mx[as.character(year)] / 100)) / 10,
+         country = "Mexico")
+
+cohort_1990 <- bind_rows(
+  us_1990 %>% select(age, hourly_wage_2010, country),
+  mx_1990 %>% select(age, hourly_wage_2010, country)
+)
+
+cohort_1990_avg <- cohort_1990 %>%
+  group_by(country, age) %>%
+  summarise(avg_wage = mean(hourly_wage_2010, na.rm = TRUE), .groups = "drop")
+
+cohort_1990_relative <- cohort_1990_avg %>%
+  group_by(country) %>%
+  mutate(wage_rel_to_20 = avg_wage / avg_wage[age == 20])
+
+
+library(ggplot2)
+ggplot(cohort_1990_relative, aes(x = age, y = wage_rel_to_20, color = country)) +
+  geom_line() +
+  geom_point() 
+```
+\newpage
+
+## Question 9
+
+When restricting to high school graduates, wage growth over the life cycle is still steeper in the US than in Mexico, though the pattern is slightly smoother and more consistent. This supports the idea that part of the observed life-cycle wage growth reflects returns to experience, not just shifting sample composition due to education. However, the fact that restricting education changes the shape somewhat validates the critique—sample composition over age does matter, especially at younger ages.
+
+```{r}
+us_1990_hs <- cps %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 1560,
+         incwage > 0,
+         year - age == 1990,
+         edyears == 13) %>%
+  mutate(hourly_wage = incwage / hours,
+         hourly_wage_2010 = hourly_wage / (cpi_us[as.character(year)] / 100),
+         country = "US")
+
+mx_1990_hs <- enoe %>%
+  filter(male == 1,
+         classwk == "Wage/salary worker",
+         hours >= 30,
+         incwage > 0,
+         year - age == 1990,
+         edyears == 12) %>%
+  mutate(hourly_wage = incwage / (hours * 52),
+         hourly_wage_2010 = (hourly_wage / (cpi_mx[as.character(year)] / 100)) / 10,
+         country = "Mexico")
+
+cohort_1990_hs <- bind_rows(
+  us_1990_hs %>% select(age, hourly_wage_2010, country),
+  mx_1990_hs %>% select(age, hourly_wage_2010, country)
+)
+
+cohort_1990_hs_avg <- cohort_1990_hs %>%
+  group_by(country, age) %>%
+  summarise(avg_wage = mean(hourly_wage_2010, na.rm = TRUE), .groups = "drop")
+
+cohort_1990_hs_relative <- cohort_1990_hs_avg %>%
+  group_by(country) %>%
+  mutate(wage_rel_to_20 = avg_wage / avg_wage[age == 20])
+
+
+ggplot(cohort_1990_hs_relative, aes(x = age, y = wage_rel_to_20, color = country)) +
+  geom_line() +
+  geom_point() 
+
+
+```
+\newpage
+
+## Question 10
+
+For high school graduates born in 1990, the proportional return to nine years of potential work experience is about 20% in Mexico and 76% in the United States. This large cross-country difference in experience returns may be driven by factors such as stronger labor market incentives, better career progression opportunities, and higher returns to skill accumulation in the U.S., compared to Mexico’s larger informal sector and different labor market dynamics.
+
+
+```{r}
+
+returns_9yr <- cohort_1990_hs_relative %>%
+  filter(age %in% c(20, 29)) %>%
+  pivot_wider(names_from = age, values_from = wage_rel_to_20, names_prefix = "age_") %>%
+  mutate(return_9yr = age_29 - 1)  # Wage at 20 is baseline (1), so subtract 1 to get return
+
+print(returns_9yr)
+
+
+```
