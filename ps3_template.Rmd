@@ -1,0 +1,214 @@
+---
+title: "ECON 125 Problem Set 3"
+author: "Mia Yu"
+output: html_document # can change to pdf_document if you have LaTeX
+---
+
+```{r, message = FALSE, include = FALSE}
+# This code block sets up the R environment for you
+# You do not need to edit it
+
+# Clear the R environment
+rm(list=ls())
+
+# Load tidyverse
+library(tidyverse)
+
+# Load data into data frame and call it country_year_age
+country_year_age <- read_csv(url("https://github.com/tomvogl/econ125/raw/main/data/UN_fertility_country_year_age.csv"))
+```
+
+## Question 1
+
+asfr dropped significantly from 1960 to 1990 from highest over 300 to the highest around 150, while 1990 to 2020 shows relatively smaller difference.
+
+```{r}
+
+korea_asfr <- country_year_age %>%
+  filter(country=="Republic of Korea", year%%10==0)
+
+ggplot(korea_asfr,aes(x=age, y=asfr, color=factor(year))) +
+  geom_line()
+
+```
+
+\newpage
+
+## Question 2
+
+the distribution moves to left over time, showing lower tfr
+
+```{r}
+country_year <-
+  country_year_age |>
+  group_by(country,year) |>
+  summarise(tfr = sum(asfr)/1000)
+
+country_decade <-country_year |> filter(year%%10==0)
+
+ggplot(country_decade,aes(x=tfr))+
+  geom_histogram()+
+  facet_wrap(~year)
+
+```
+
+\newpage
+
+## Question 3
+
+In 1950, Korea tfr is higher than global median tfr, however, it drops lower than global median tfr from 1960
+
+```{r}
+
+global_median_tfr <- country_year %>%
+  filter(year %% 10 == 0) %>%
+  group_by(year) %>%
+  summarise(median_tfr = median(tfr), .groups = "drop")  # <-- drop the grouping
+
+korea_tfr <- country_year %>%
+  filter(country == "Republic of Korea", year %% 10 == 0) %>%
+  select(year, tfr)
+
+global_median_tfr
+korea_tfr
+
+
+```
+\newpage
+
+## Question 4
+
+All the graph shows positive relationship between tfr and asfr. it became lower and lower over time, as we can see in 2020, they are gathered mostly below 2020
+
+```{r}
+# Question 4 code here
+
+country_decade2 <-country_year_age %>%
+filter(year%%10==0 & age==19) %>%
+  select(country,year,asfr) %>%
+  rename(asfr19= asfr) 
+
+scatter_data <-country_decade2 %>%
+  left_join(country_year, by = c("country", "year"))
+
+ggplot(scatter_data, aes(x=asfr19, y=tfr)) +
+  geom_point() +
+  facet_wrap(~year)
+```
+\newpage
+
+## Question 5
+
+positive, but this one no linear relationship systematicaly linked to total fertility rte
+
+```{r}
+
+korea<-country_year_age %>%
+  filter(countrycode=="KOR" & age==19) %>%
+  select(country,year,asfr) %>%
+  rename(asfr19=asfr) %>%
+  left_join(country_year,by=c("country","year"))
+
+ggplot(korea,aes(x=asfr19,y=tfr))+
+  geom_point()
+
+
+```
+\newpage
+
+## Question 6
+
+cohorts born in 1940, 1950, 1960, and 1970 have a full fertility history (35 observations each).
+
+```{r}
+
+korea_cohort <- country_year_age %>%
+  filter(country == "Republic of Korea") %>%
+  mutate(birth_year = year - age) %>%
+  filter(birth_year %% 10 == 0)
+
+cohort_counts <- korea_cohort %>%
+  group_by(birth_year) %>%
+  summarise(count = n())
+
+cohort_counts
+
+
+```
+\newpage
+
+## Question 7
+
+There’s a clear fertility decline across nearly all ages from 1940 to 1970. The 1940 cohort has the highest fertility at all ages, peaking around 25–29. By contrast, the 1970 cohort’s fertility is much lower overall. Notably, we also see a slight shift toward later childbearing in later cohorts: the peak fertility age moves slightly older in the 1960 and 1970 cohorts compared to 1940 and 1950.
+
+```{r}
+
+cohorts_full <- c(1940, 1950, 1960, 1970)
+
+korea_cohort_plot <- korea_cohort %>%
+  filter(birth_year %in% cohorts_full)
+
+ggplot(korea_cohort_plot, aes(x = age, y = asfr, color = factor(birth_year))) +
+  geom_line() 
+
+
+```
+\newpage
+
+## Question 8
+
+The plot shows that the 1940 cohort had much higher CEB at all ages compared to the 1970 cohort. From the table, the average CEB at age 30 declined from 3000000 to 1400000 children between the 1940 and 1970 cohorts. The completed fertility rate (final CEB at around age 49 dropped from 4000000 in 1940 to 1800000 in 1970) also declined significantly, reflecting Korea's overall fertility transition.
+
+```{r}
+
+korea_ceb <- korea_cohort_plot %>%
+  arrange(birth_year, age) %>%
+  group_by(birth_year) %>%
+  mutate(ceb = cumsum(asfr)/1000)
+
+ggplot(korea_ceb, aes(x = age, y = ceb, color = factor(birth_year))) +
+  geom_point() 
+
+ceb_age30 <- korea_ceb %>%
+  filter(age == 30, birth_year %in% c(1940, 1970))
+
+ceb_age30
+
+```
+\newpage
+
+## Question 9
+
+The plot shows that Korea's completed fertility rate was declined sharply from since the beginning of x axis which is around 1940 cohort onward. 
+
+```{r}
+
+completed_fertility <- country_year_age %>%
+  filter(country == "Republic of Korea") %>%
+  mutate(birth_year = year - age) %>%
+  group_by(birth_year) %>%
+  arrange(age) %>% 
+  summarise(cfr = sum(asfr)/1000, count=n()) %>%
+  filter(count==35)
+
+ggplot(completed_fertility, aes(x = birth_year, y = cfr)) + 
+  geom_line()
+
+```
+\newpage
+
+## Question 10
+
+The plot shows that the fertility rate at age 40 declined for cohorts from 1920 to 1940 but stabilized or even increased slightly in more recent cohorts, suggesting a slight rise in late childbearing in recent generations.
+
+```{r}
+
+completed_fertility <- country_year_age %>%
+  filter(country == "Republic of Korea" & age==40) %>%
+  mutate(birth_year = year - age)
+
+ggplot(completed_fertility, aes(x = birth_year, y = asfr)) +
+  geom_line() 
+
+
+```
