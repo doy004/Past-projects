@@ -1,0 +1,230 @@
+---
+title: "ECON 125 Problem Set 2"
+author: "Your name"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, message = FALSE, include = FALSE}
+# This code block sets up the R environment for you
+# You do not need to edit it
+
+# Clear the R environment
+rm(list=ls())
+
+# Load tidyverse
+library(tidyverse)
+
+# Load data into data frame and call it df
+df <- read_csv(url("https://github.com/tomvogl/econ125/raw/main/data/US_mortality_age_year.csv"))
+```
+
+## Question 1
+
+Question 1 text here. #male have higher mortality rate with 96.757.
+
+```{r}
+
+df<- df %>%
+  mutate(female_mr=female_deaths/female_pop*1000,
+         male_mr=male_deaths/male_pop*1000,
+         total_mr=total_deaths/total_pop*1000,) 
+
+df %>%
+  summarise(female_avg_mr=mean(female_mr),
+            male_avg_mr=mean(male_mr))
+
+```
+
+\newpage
+
+## Question 2
+
+Question 2 text here.#The male-female difference is larger in 90-100 than 20-30. the male-female ratio of mortality rates is larger among 20-30 year-olds.
+
+```{r}
+
+
+df23<-df %>% filter(year==2023)
+
+ggplot(df23,aes(x=age))+
+  geom_line(aes(y=female_mr,color="Female"))+
+  geom_line(aes(y=male_mr,color="Male"))
+
+
+ggplot(df23,aes(x=age))+
+  geom_line(aes(y=log(female_mr),color="Female"))+
+  geom_line(aes(y=log(male_mr),color="Male"))
+
+
+
+```
+
+\newpage
+
+## Question 3
+
+Question 3 text here.
+# No because the age structure has changed for the past 30 years. crude rate change change 11% to 9% and not considering the age structure, so most likely this is not the correct estimate.
+```{r}
+
+
+anual_df<-df %>%
+  group_by(year) %>%
+  summarise(cmr=sum(total_deaths)/sum(total_pop)*1000)
+
+ggplot(anual_df,aes(x=year,y=cmr))+
+  geom_line()
+
+
+```
+\newpage
+
+## Question 4
+
+Question 4 text here.
+# younger age such as age 10 and below has the most proportional decline, from age 20 we can see increase in mortality during COVID
+```{r}
+
+df10<- df%>%
+  filter(age%%10==0 & age<=90)
+
+ggplot(df10,aes(x=year,y=log(total_mr),color=factor(age)))+
+  geom_line()
+
+```
+\newpage
+
+## Question 5
+
+Question 5 text here. #the age standardized graph shows bigger drops in mortality considering the effect of age structure.
+
+```{r}
+
+df232<-df23 %>%
+  mutate(pop_share23=total_pop/sum(total_pop)) %>%
+  select(age,pop_share23)
+
+df<-df %>%
+  left_join(df232,by="age")
+
+
+anual_df<-df %>%
+  group_by(year) %>%
+  mutate(asmr=sum(pop_share23*total_mr))
+
+ggplot(anual_df,aes(x=year,y=asmr))+
+  geom_line()
+
+
+```
+\newpage
+
+## Question 6
+
+Question 6 text here.#Between 1933 to 2019, life expectancy at birth increased about 15%, while it dropped for about 10% during COVID.
+
+```{r}
+
+df<-df %>%
+  group_by(year) %>%
+  arrange(age) %>%
+  mutate(q=ifelse(age<110,total_mr/1000/(1+0.5*total_mr/1000),1),
+         l=100000*cumprod(lag(1-q,default=1)),
+         d=l*q,
+         L=l-.5*d,
+         T=sum(L)-cumsum(L)+L,
+         e=T/l)
+
+df_0 <- df %>%
+  filter(age==0)
+
+ggplot(df_0,aes(x=year,y=e))+
+  geom_line()
+
+
+```
+\newpage
+
+## Question 7
+
+Question 7 text here.
+#around age 80 initially people would have died
+```{r}
+
+df_23<-df %>%
+  filter(year==2023)
+
+ggplot(df_23,aes(x=age,y=l))+
+  geom_line()
+
+```
+\newpage
+
+## Question 8
+
+Question 8 text here.
+#In 1933 was 5.8% now in 2023 is 0.5%, it dropped significantly.
+
+```{r}
+
+df %>%
+  filter((year-3)%%10==0 & age==0) %>%
+  select(year,q)
+
+```
+\newpage
+
+## Question 9
+
+Question 9 text here.
+#barely reach 75 around 4 years
+```{r}
+
+df<-df %>%
+  mutate(q=ifelse(age==0,0.0588,q ))
+
+df<-df %>%
+  group_by(year) %>%
+  arrange(age) %>%
+  mutate(l=100000*cumprod(lag(1-q,default=1)),
+         d=l*q,
+         L=l-.5*d,
+         T=sum(L)-cumsum(L)+L,
+         e=T/l)
+
+  df_0<-df %>%
+    filter(age==0)
+  
+ggplot(df_0,aes(x=year,y=e))+
+  geom_line()
+
+```
+\newpage
+
+## Question 10
+
+Question 10 text here.
+#cohort life expectancy shows how much change when you have lived lifetime, while period life expectancy only show a snapshot or one's mortality rate.
+```{r}
+
+df<-df %>%
+  mutate(birthyear=year-age)
+
+df<-df %>%
+  group_by(birthyear) %>%
+  arrange(age) %>%
+  mutate(q=ifelse(age<110,total_mr/1000/(1+0.5*total_mr/1000),1),
+         l=100000*cumprod(lag(1-q,default=1)),
+         d=l*q,
+         L=l-.5*d,
+         T=sum(L)-cumsum(L)+L,
+         e=T/l)
+
+df65<-df %>%
+  filter(age==65 & birthyear<=1913)
+
+ggplot(df65,aes(x=birthyear,y=e))+
+  geom_line()
+
